@@ -1,0 +1,5 @@
+*
+!.gitignore
+!*.ipynb
+!usgs_data/
+!usgs_data/download_usgs_catalog.sh
