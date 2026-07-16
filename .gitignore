@@ -1,5 +1,10 @@
 *
 !.gitignore
 !*.ipynb
-!usgs_data/
-!usgs_data/download_usgs_catalog.sh
+!2026????/
+!data/
+!data/usgs_data/
+!data/usgs_data/download_usgs_catalog.sh
+!results/
+!*.py
+!*.npy
