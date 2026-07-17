@@ -8,3 +8,6 @@
 !results/
 !*.py
 !*.npy
+!skrypty_dl/
+!skrypty_dl/wlasne/
+!skrypty_dl/wlasne/download_allstations_history.py
