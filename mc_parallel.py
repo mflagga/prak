@@ -129,3 +129,59 @@ def run_t0_scan_parallel(cr, eq, t0_candidates, P_days, d_days, m, dt_days,
         df.to_csv(save_path, index=False)
 
     return df
+
+
+def run_jobs_parallel(job_fn, jobs, n_workers=None, save_path=None,
+                      opis="zadan", raport_co=1):
+    """Uruchamia `job_fn(job)` dla każdego elementu `jobs` w puli procesów.
+
+    Celowo BEZ żadnej wiedzy o analizie: `job_fn` ma zwrócić listę słowników
+    (albo pojedynczy słownik), a ta funkcja tylko rozdziela zadania, raportuje
+    postęp i skleja wynik w DataFrame. Cała logika merytoryczna zostaje w
+    notebooku — zgodnie z konwencją repo, że notebooki są samodzielne.
+
+    Dodane 20260902 na potrzeby kalibracji surogatowej (20260902a.ipynb), gdzie
+    jedno zadanie = jeden katalog surogatowy przeliczony przez cały łańcuch
+    sekcji 4. `run_t0_scan_parallel` się do tego nie nadaje, bo zrównolegla po
+    t0 przy USTALONYM katalogu — dla 200 katalogów tworzyłaby 200 pul.
+
+    Uwagi:
+    - Kontekst `fork` (jak w pozostałych funkcjach tego modułu): `job_fn`
+      zdefiniowana w komórce notebooka jest wtedy przekazywalna, a duże obiekty
+      globalne (serie CR, katalog) procesy potomne dziedziczą bez kopiowania.
+      Pod Pythonem 3.14 `fork` trzeba brać jawnie — domyślny kontekst się
+      zmienił (patrz komentarz przy `run_mc_parallel`).
+    - `save_path`: zapis następuje DOPIERO po zebraniu wszystkich wyników
+      (pojedyncze zadanie jest tu tanie, więc atomowy zapis per zadanie jak w
+      `run_t0_scan_parallel` nie jest potrzebny).
+    """
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    import multiprocessing
+    import os
+    import time
+
+    n_workers = n_workers or os.cpu_count()
+    jobs = list(jobs)
+    ctx = multiprocessing.get_context("fork")
+
+    start = time.time()
+    wyniki = []
+    zrobione = 0
+    with ProcessPoolExecutor(max_workers=n_workers, mp_context=ctx) as ex:
+        futures = {ex.submit(job_fn, j): j for j in jobs}
+        for fut in as_completed(futures):
+            r = fut.result()
+            wyniki.extend(r if isinstance(r, list) else [r])
+            zrobione += 1
+            if raport_co and (zrobione % raport_co == 0 or zrobione == len(jobs)):
+                minelo = time.time() - start
+                zostalo = minelo / zrobione * (len(jobs) - zrobione)
+                print(f"  {zrobione}/{len(jobs)} {opis}; "
+                      f"minelo {minelo / 60:.1f} min, zostalo ~{zostalo / 60:.1f} min",
+                      flush=True)
+
+    df = pd.DataFrame(wyniki)
+    if save_path is not None:
+        df.to_csv(save_path, index=False)
+        print(f"Zapisano {save_path} ({len(df)} wierszy)")
+    return df
